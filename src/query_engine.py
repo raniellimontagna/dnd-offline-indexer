@@ -102,10 +102,12 @@ class QueryEngine:
         # Detecta tipos específicos de consulta
         if any(term in query_lower for term in ['regra', 'regras', 'rule', 'rules']):
             intent['query_type'] = 'rules'
+        elif any(term in query_lower for term in ['truques', 'cantrips', 'cantrip', 'magia de nível 0', '0-level']):
+            intent['query_type'] = 'cantrips'
+        elif any(term in query_lower for term in ['magia', 'spell', 'conjuração', 'casting', 'feitiço']):
+            intent['query_type'] = 'spells'
         elif any(term in query_lower for term in ['personagem', 'character', 'classe', 'class']):
             intent['query_type'] = 'character'
-        elif any(term in query_lower for term in ['magia', 'spell', 'conjuração', 'casting']):
-            intent['query_type'] = 'spells'
         elif any(term in query_lower for term in ['combate', 'combat', 'ataque', 'attack']):
             intent['query_type'] = 'combat'
         elif any(term in query_lower for term in ['monstro', 'monster', 'criatura', 'creature']):
@@ -149,31 +151,46 @@ class QueryEngine:
         # Adiciona sinônimos e termos relacionados
         synonyms = {
             'pt': {
+                'truques': ['truques', 'cantrips', 'magias de nível 0', 'cantrip', 'magia menor'],
                 'vantagem': ['vantagem', 'advantage', 'benefício'],
                 'desvantagem': ['desvantagem', 'disadvantage', 'penalidade'],
                 'ca': ['ca', 'classe de armadura', 'armor class', 'ac'],
                 'pv': ['pv', 'pontos de vida', 'hit points', 'hp', 'vida'],
-                'magia': ['magia', 'spell', 'conjuração', 'feitiço'],
-                'personagem': ['personagem', 'character', 'pc', 'jogador']
+                'magia': ['magia', 'spell', 'conjuração', 'feitiço', 'encantamento'],
+                'personagem': ['personagem', 'character', 'pc', 'jogador'],
+                'mago': ['mago', 'wizard', 'bruxo', 'feiticeiro', 'sorcerer', 'warlock'],
+                'classe': ['classe', 'class', 'arquétipo'],
+                'combate': ['combate', 'combat', 'luta', 'batalha', 'fight'],
+                'rolagem': ['rolagem', 'roll', 'teste', 'jogada']
             },
             'en': {
+                'cantrips': ['cantrips', 'truques', '0-level spells', 'cantrip', 'minor spells'],
                 'advantage': ['advantage', 'vantagem', 'benefit'],
                 'disadvantage': ['disadvantage', 'desvantagem', 'penalty'],
                 'ac': ['ac', 'armor class', 'ca', 'classe de armadura'],
                 'hp': ['hp', 'hit points', 'pv', 'pontos de vida', 'health'],
-                'spell': ['spell', 'magia', 'conjuração', 'casting'],
-                'character': ['character', 'personagem', 'pc', 'player']
+                'spell': ['spell', 'magia', 'conjuração', 'casting', 'magic'],
+                'character': ['character', 'personagem', 'pc', 'player'],
+                'wizard': ['wizard', 'mago', 'sorcerer', 'feiticeiro', 'warlock', 'bruxo'],
+                'class': ['class', 'classe', 'archetype'],
+                'combat': ['combat', 'combate', 'fight', 'battle'],
+                'roll': ['roll', 'rolagem', 'test', 'check']
             }
         }
 
-        # Expande consulta com sinônimos se ela for muito específica
-        if len(query.split()) <= 3:
-            query_words = query.lower().split()
-            lang_synonyms = synonyms.get(intent['language'], {})
+        # Expande consulta com sinônimos mais inteligentemente
+        query_words = query.lower().split()
+        lang_synonyms = synonyms.get(intent['language'], {})
 
-            for word in query_words:
-                if word in lang_synonyms:
-                    enhanced += f" {' '.join(lang_synonyms[word])}"
+        # Identifica termos que têm sinônimos e adiciona apenas os mais relevantes
+        expanded_terms = []
+        for word in query_words:
+            if word in lang_synonyms:
+                # Adiciona apenas os 3 sinônimos mais importantes
+                expanded_terms.extend(lang_synonyms[word][:3])
+
+        if expanded_terms:
+            enhanced += f" {' '.join(expanded_terms)}"
 
         return enhanced
 
@@ -205,8 +222,21 @@ class QueryEngine:
             )
 
         # Calcula confiança baseada nos scores dos resultados
-        avg_score = sum(r['score'] for r in results) / len(results)
-        confidence = min(avg_score * 1.2, 1.0)  # Boost de confiança
+        if not results:
+            confidence = 0.0
+        else:
+            # Usa uma média ponderada que favorece os melhores resultados
+            top_scores = [r['score'] for r in results[:3]]  # Top 3 resultados
+            avg_top_score = sum(top_scores) / len(top_scores)
+
+            # Aplica fator de boost baseado na qualidade dos resultados
+            # Se o melhor resultado é muito bom (>0.7), aumenta confiança
+            if results[0]['score'] > 0.7:
+                confidence = min(avg_top_score * 1.3, 1.0)
+            elif results[0]['score'] > 0.5:
+                confidence = min(avg_top_score * 1.1, 1.0)
+            else:
+                confidence = avg_top_score
 
         # Prepara fontes
         sources = []
@@ -361,6 +391,22 @@ class QueryEngine:
                 book_type=search_book_type,
                 book_filename=book_filename
             )
+
+        # Se ainda não encontrou resultados satisfatórios, tenta busca mais ampla
+        if not results or (results and results[0]['score'] < 0.3):
+            logger.info("Tentando busca mais ampla...")
+            broader_query = question  # Usa consulta original sem expansão
+            broader_results = self.indexer.search(
+                query=broader_query,
+                language=None,  # Busca em ambos idiomas
+                n_results=max_results * 2,  # Busca mais resultados
+                book_type=search_book_type,
+                book_filename=book_filename
+            )
+
+            # Se a busca ampla trouxe resultados melhores, usa ela
+            if broader_results and (not results or broader_results[0]['score'] > results[0]['score']):
+                results = broader_results[:max_results]
 
         # Gera resposta
         response = self.generate_response(question, results, intent)

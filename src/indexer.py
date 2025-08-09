@@ -216,12 +216,17 @@ class DnDIndexer:
                 # Processa resultados
                 if results['documents'] and results['documents'][0]:
                     for i in range(len(results['documents'][0])):
+                        distance = results['distances'][0][i]
+                        # Converte distância em score de similaridade (0-1)
+                        # ChromaDB usa distância euclidiana normalizada, então convertemos para similaridade
+                        # Sempre positivo, 0-1
+                        score = max(0.0, 1.0 / (1.0 + distance))
+
                         result = {
                             'id': results['ids'][0][i],
                             'text': results['documents'][0][i],
-                            'distance': results['distances'][0][i],
-                            # Converte distância em score
-                            'score': 1 - results['distances'][0][i],
+                            'distance': distance,
+                            'score': score,
                             'language': lang,
                             'metadata': results['metadatas'][0][i]
                         }
