@@ -1,0 +1,144 @@
+# === CONTEÚDO PROTEGIDO POR COPYRIGHT ===
+# PDFs dos livros oficiais de D&D
+data/books/*.pdf
+data/books/**/*.pdf
+
+# Índices gerados a partir do conteúdo dos livros
+index/
+index/**/*
+
+# === AMBIENTE PYTHON ===
+# Virtual environment
+.venv/
+venv/
+env/
+ENV/
+
+# Python cache
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+
+# Distribution / packaging
+.Python
+build/
+develop-eggs/
+dist/
+downloads/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+wheels/
+share/python-wheels/
+*.egg-info/
+.installed.cfg
+*.egg
+MANIFEST
+
+# PyInstaller
+*.manifest
+*.spec
+
+# Installer logs
+pip-log.txt
+pip-delete-this-directory.txt
+
+# Unit test / coverage reports
+htmlcov/
+.tox/
+.nox/
+.coverage
+.coverage.*
+.cache
+nosetests.xml
+coverage.xml
+*.cover
+*.py,cover
+.hypothesis/
+.pytest_cache/
+cover/
+
+# === DADOS TEMPORÁRIOS ===
+# Logs
+*.log
+logs/
+
+# Configurações locais
+config_local.json
+.env
+.env.local
+
+# === SISTEMA OPERACIONAL ===
+# MacOS
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+Thumbs.db
+
+# Windows
+Thumbs.db
+ehthumbs.db
+Desktop.ini
+$RECYCLE.BIN/
+*.lnk
+
+# Linux
+*~
+.fuse_hidden*
+.directory
+.Trash-*
+.nfs*
+
+# === EDITORES ===
+# VSCode
+.vscode/
+!.vscode/settings.json
+!.vscode/tasks.json
+!.vscode/launch.json
+!.vscode/extensions.json
+*.code-workspace
+
+# PyCharm
+.idea/
+*.iml
+*.ipr
+*.iws
+
+# Vim
+*.swp
+*.swo
+*~
+
+# Emacs
+*~
+\#*\#
+/.emacs.desktop
+/.emacs.desktop.lock
+*.elc
+auto-save-list
+tramp
+.\#*
+
+# === DADOS ESPECÍFICOS DO PROJETO ===
+# Modelos baixados (podem ser grandes)
+models/
+*.model
+*.bin
+
+# Dados de teste específicos
+test_data/
+sample_pdfs/
+
+# Backups
+*.bak
+*.backup
+*.old

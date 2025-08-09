@@ -1,0 +1,42 @@
+{
+  "system": {
+    "name": "D&D 5e Offline Indexer",
+    "version": "1.0.0",
+    "description": "Sistema pessoal para consultas em documentos de D&D 5e"
+  },
+  "paths": {
+    "books_dir": "data/books",
+    "index_dir": "index",
+    "templates_dir": "templates"
+  },
+  "indexing": {
+    "chunk_size": 1000,
+    "chunk_overlap": 200,
+    "embedding_model": "all-MiniLM-L6-v2",
+    "max_results_default": 10
+  },
+  "server": {
+    "host": "0.0.0.0",
+    "port": 8000,
+    "reload": false
+  },
+  "languages": {
+    "supported": ["pt", "en"],
+    "default": "pt"
+  },
+  "book_types": {
+    "players_handbook": "Livro do Jogador",
+    "dungeon_masters_guide": "Guia do Mestre",
+    "monster_manual": "Manual dos Monstros",
+    "supplement": "Suplemento"
+  },
+  "response": {
+    "confidence_thresholds": {
+      "high": 0.7,
+      "medium": 0.4,
+      "low": 0.0
+    },
+    "max_sources_display": 5,
+    "max_answer_length": 1000
+  }
+}
