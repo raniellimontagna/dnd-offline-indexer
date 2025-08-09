@@ -1,5 +1,6 @@
 from text_processor import TextProcessor
 from indexer import DnDIndexer
+from ai_response_generator import AIResponseGenerator
 import re
 from typing import List, Dict, Optional, Tuple
 from dataclasses import dataclass
@@ -32,9 +33,18 @@ class QueryResponse:
 class QueryEngine:
     """Motor de consultas inteligente para documentos de D&D."""
 
-    def __init__(self, index_dir: str = "index"):
+    def __init__(self, index_dir: str = "index", enable_ai: bool = True):
         self.indexer = DnDIndexer(index_dir)
         self.processor = TextProcessor()
+
+        # Inicializa gerador IA se solicitado
+        self.ai_generator = None
+        if enable_ai:
+            try:
+                self.ai_generator = AIResponseGenerator()
+                logger.info(f"IA habilitada: {self.ai_generator.available}")
+            except Exception as e:
+                logger.warning(f"Erro ao inicializar IA: {e}")
 
         # Templates de resposta por idioma
         self.response_templates = {
@@ -169,7 +179,7 @@ class QueryEngine:
 
     def generate_response(self, query: str, results: List[Dict], intent: Dict) -> QueryResponse:
         """
-        Gera resposta baseada nos resultados da busca.
+        Gera resposta baseada nos resultados da busca usando IA quando disponível.
 
         Args:
             query: Consulta original
@@ -198,11 +208,70 @@ class QueryEngine:
         avg_score = sum(r['score'] for r in results) / len(results)
         confidence = min(avg_score * 1.2, 1.0)  # Boost de confiança
 
+        # Prepara fontes
+        sources = []
+        seen_sources = set()
+
+        for result in results[:5]:  # Mostra até 5 fontes
+            metadata = result['metadata']
+            book_name = metadata['book_filename'].replace('.pdf', '')
+            page_num = metadata['page_number']
+
+            source_key = f"{book_name}_{page_num}"
+            if source_key not in seen_sources:
+                sources.append({
+                    'book': book_name,
+                    'page': page_num,
+                    'score': result['score'],
+                    'language': result['language']
+                })
+                seen_sources.add(source_key)
+
+        # Gera resposta usando IA se disponível
+        if self.ai_generator and self.ai_generator.available:
+            logger.info("Gerando resposta com IA...")
+            ai_answer = self.ai_generator.generate_response(
+                query, results, language)
+
+            # Adiciona informações sobre fontes à resposta IA
+            if sources:
+                source_lines = [templates['sources_intro']]
+                for source in sources:
+                    source_line = templates['source_format'].format(
+                        book=source['book'],
+                        page=source['page']
+                    )
+                    source_lines.append(source_line)
+
+                ai_answer += '\n\n' + '\n'.join(source_lines)
+
+            answer = ai_answer
+        else:
+            # Fallback para resposta tradicional
+            logger.info("Gerando resposta tradicional (IA não disponível)")
+            answer = self._generate_traditional_response(
+                query, results, intent, templates, sources)
+
+        processing_time = (datetime.now() - start_time).total_seconds()
+
+        return QueryResponse(
+            answer=answer,
+            confidence=confidence,
+            sources=sources,
+            query_language=language,
+            processing_time=processing_time,
+            found_results=len(results)
+        )
+
+    def _generate_traditional_response(self, query: str, results: List[Dict],
+                                       intent: Dict, templates: Dict, sources: List[Dict]) -> str:
+        """Gera resposta tradicional quando IA não está disponível."""
+        answer_parts = []
+
         # Seleciona melhores resultados para a resposta
         top_results = results[:3]  # Usa os 3 melhores
-
-        # Constrói resposta combinando informações relevantes
-        answer_parts = []
+        confidence = min(sum(r['score']
+                         for r in results) / len(results) * 1.2, 1.0)
 
         if confidence < 0.3:
             answer_parts.append(
@@ -226,25 +295,6 @@ class QueryEngine:
                 answer_parts.append(f"\n{content}")
                 seen_content.add(content_key)
 
-        # Adiciona fontes
-        sources = []
-        seen_sources = set()
-
-        for result in results[:5]:  # Mostra até 5 fontes
-            metadata = result['metadata']
-            book_name = metadata['book_filename'].replace('.pdf', '')
-            page_num = metadata['page_number']
-
-            source_key = f"{book_name}_{page_num}"
-            if source_key not in seen_sources:
-                sources.append({
-                    'book': book_name,
-                    'page': page_num,
-                    'score': result['score'],
-                    'language': result['language']
-                })
-                seen_sources.add(source_key)
-
         # Adiciona fontes à resposta
         if sources:
             answer_parts.append(templates['sources_intro'])
@@ -255,16 +305,7 @@ class QueryEngine:
                 )
                 answer_parts.append(source_line)
 
-        processing_time = (datetime.now() - start_time).total_seconds()
-
-        return QueryResponse(
-            answer='\n'.join(answer_parts),
-            confidence=confidence,
-            sources=sources,
-            query_language=language,
-            processing_time=processing_time,
-            found_results=len(results)
-        )
+        return '\n'.join(answer_parts)
 
     def query(self, question: str, max_results: int = 10,
               book_type: str = None, book_filename: str = None) -> QueryResponse:
@@ -346,7 +387,28 @@ class QueryEngine:
         Returns:
             Estatísticas das coleções
         """
-        return self.indexer.get_collection_stats()
+        stats = self.indexer.get_collection_stats()
+
+        # Adiciona informações sobre IA
+        if self.ai_generator:
+            stats['ai_status'] = self.ai_generator.get_status()
+        else:
+            stats['ai_status'] = {"available": False,
+                                  "reason": "IA desabilitada"}
+
+        return stats
+
+    def get_ai_status(self) -> Dict:
+        """
+        Retorna status específico da IA.
+
+        Returns:
+            Status da IA
+        """
+        if self.ai_generator:
+            return self.ai_generator.get_status()
+        else:
+            return {"available": False, "reason": "IA não inicializada"}
 
 # Função de conveniência para consultas rápidas
 

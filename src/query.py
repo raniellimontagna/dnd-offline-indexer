@@ -193,13 +193,38 @@ def status_command(args):
 
         # Estatísticas das coleções
         stats = engine.get_stats()
-        total_docs = sum(stat.get('total_documents', 0)
-                         for stat in stats.values())
+
+        # Calcula total de documentos
+        total_docs = 0
+        language_stats = {}
+
+        for key, value in stats.items():
+            if key != 'ai_status' and isinstance(value, dict) and 'total_documents' in value:
+                count = value['total_documents']
+                total_docs += count
+                language_stats[key] = count
 
         print(f"📄 Total de documentos: {total_docs}")
-        print(f"🌐 Idiomas disponíveis:")
-        for lang, stat in stats.items():
-            print(f"   {lang.upper()}: {stat['total_documents']} documentos")
+
+        if language_stats:
+            print(f"🌐 Idiomas disponíveis:")
+            for lang, count in language_stats.items():
+                print(f"   • {lang.upper()}: {count} documentos")
+
+        # Status da IA
+        print(f"\n🤖 Status da IA:")
+        ai_status = stats.get('ai_status', {})
+        if ai_status.get('available', False):
+            print(
+                f"   ✅ IA ativa - Modelo: {ai_status.get('model', 'desconhecido')}")
+            installed_models = ai_status.get('installed_models', [])
+            if installed_models:
+                print(
+                    f"   📦 Modelos instalados: {', '.join(installed_models)}")
+        else:
+            reason = ai_status.get('reason', 'Motivo desconhecido')
+            print(f"   ❌ IA inativa - {reason}")
+            print(f"   💡 Para ativar: instale Ollama e execute 'ollama pull llama3.2:3b'")
 
         # Lista de livros
         books = engine.get_available_books()
@@ -222,9 +247,6 @@ def status_command(args):
 
     except Exception as e:
         print(f"❌ Erro ao obter status: {e}")
-        if args.verbose:
-            import traceback
-            traceback.print_exc()
         return False
 
 
@@ -254,6 +276,100 @@ def list_books_command(args):
 
     except Exception as e:
         print(f"❌ Erro ao listar livros: {e}")
+        return False
+
+
+def ai_setup_command(args):
+    """Comando para configurar e testar IA."""
+    print("🤖 Configurando IA para D&D 5e Indexer")
+    print("=" * 50)
+
+    try:
+        import ollama
+
+        print("✅ Biblioteca Ollama encontrada")
+
+        # Verifica se Ollama está rodando
+        try:
+            models = ollama.list()
+            print("✅ Ollama está rodando")
+        except Exception as e:
+            print("❌ Ollama não está rodando!")
+            print("💡 Instale Ollama:")
+            print("   - Linux/Mac: curl -fsSL https://ollama.ai/install.sh | sh")
+            print("   - Windows: https://ollama.ai/download")
+            print("   - Depois execute: ollama serve")
+            return False
+
+        # Lista modelos instalados
+        models_response = models.get('models', [])
+        installed_models = []
+
+        for model in models_response:
+            if isinstance(model, dict):
+                name = model.get('name') or model.get(
+                    'model') or model.get('id')
+                if name:
+                    installed_models.append(name)
+            elif isinstance(model, str):
+                installed_models.append(model)
+
+        print(
+            f"📦 Modelos instalados: {installed_models if installed_models else 'nenhum'}")
+
+        # Instala modelo se necessário
+        if args.model not in installed_models:
+            print(f"⬇️ Baixando modelo {args.model}...")
+            print("⏳ Isso pode demorar alguns minutos...")
+            try:
+                ollama.pull(args.model)
+                print(f"✅ Modelo {args.model} baixado com sucesso!")
+            except Exception as e:
+                print(f"❌ Erro ao baixar modelo: {e}")
+                return False
+        else:
+            print(f"✅ Modelo {args.model} já está instalado")
+
+        # Testa IA se solicitado
+        if args.test:
+            print(f"\n🧪 Testando IA...")
+            try:
+                from ai_response_generator import AIResponseGenerator
+
+                ai_gen = AIResponseGenerator(args.model)
+
+                if ai_gen.available:
+                    print("✅ IA está funcionando!")
+
+                    # Teste rápido
+                    test_query = "Como funciona vantagem em D&D?"
+                    test_results = [{
+                        'text': 'VANTAGEM E DESVANTAGEM: Uma vantagem reflete uma circunstância positiva que envolve uma jogada de d20.',
+                        'metadata': {'book_filename': 'livro-do-jogador.pdf', 'page_number': 6}
+                    }]
+
+                    response = ai_gen.generate_response(
+                        test_query, test_results, 'pt')
+                    print(f"🎯 Resposta de teste: {response[:100]}...")
+
+                else:
+                    print("❌ IA não está disponível")
+                    return False
+
+            except Exception as e:
+                print(f"❌ Erro ao testar IA: {e}")
+                return False
+
+        print(f"\n🎉 Configuração da IA concluída!")
+        print(f"💡 Agora suas consultas terão respostas mais elaboradas e naturais!")
+        return True
+
+    except ImportError:
+        print("❌ Biblioteca Ollama não encontrada!")
+        print("💡 Instale com: pip install ollama")
+        return False
+    except Exception as e:
+        print(f"❌ Erro durante configuração: {e}")
         return False
 
 
@@ -353,6 +469,22 @@ Exemplos de uso:
         help="Lista livros indexados"
     )
 
+    # Comando ai-setup
+    ai_parser = subparsers.add_parser(
+        "ai-setup",
+        help="Configurar e testar IA (Ollama)"
+    )
+    ai_parser.add_argument(
+        "--model",
+        default="llama3.2:3b",
+        help="Modelo a instalar (padrão: llama3.2:3b)"
+    )
+    ai_parser.add_argument(
+        "--test",
+        action="store_true",
+        help="Testar IA após configuração"
+    )
+
     args = parser.parse_args()
 
     # Configurações
@@ -375,6 +507,8 @@ Exemplos de uso:
         success = status_command(args)
     elif args.command == "list-books":
         success = list_books_command(args)
+    elif args.command == "ai-setup":
+        success = ai_setup_command(args)
 
     return 0 if success else 1
 
