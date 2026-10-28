@@ -1,5 +1,8 @@
 # D&D 5e Offline Indexer
 
+> [!WARNING]
+> **Discontinued.** This proof of concept is no longer maintained and the repository is archived (read-only).
+
 Sistema pessoal para responder dúvidas sobre Dungeons & Dragons 5e usando livros oficiais em PDF.
 
 **⚠️ Aviso Legal**: Este é um projeto educacional para demonstrar técnicas de processamento de texto e busca semântica. Certifique-se de que possui os direitos legais para indexar e consultar qualquer documento que utilizar com este sistema.
